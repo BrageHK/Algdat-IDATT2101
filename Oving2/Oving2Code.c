@@ -9,7 +9,6 @@ time_t start, end;
 // O(n) algorithm
 double power(double x, int n)
 {
-    
     if(n == 0) return 0;
     if(n == 1) return x;
     if(n > 0) return x * power(x, n-1);
@@ -89,6 +88,7 @@ bool checkAlgorithm(int x, int n, int answer)
     if(pow(x,n) != answer) return false;
     return true;
 }
+
 
 int main(int argc, char *argv[])
 {
