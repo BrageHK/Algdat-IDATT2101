@@ -1,21 +1,131 @@
-// Skrevet av Brage H. Kvamme og Eilert Werner Hansen.
+// Skrevet av Brage H. Kvamme.
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
 #include <stdbool.h>
 
+// Uendelig
+#define INF 0x7FFFFFFF;
+
+typedef struct edge2_t {
+    int num;
+    int weight;
+} HeapEdge;
+
+typedef struct MinHeap {
+    HeapEdge **arr;
+    int size;
+    int capacity;
+} MinHeap;
+
+MinHeap *init_minheap(int capacity) {
+    MinHeap *heap = (MinHeap*) malloc(sizeof(MinHeap));
+    heap->arr = (HeapEdge**) malloc(capacity * sizeof(HeapEdge));
+    heap->size = 0;
+    heap->capacity = capacity;
+    return heap;
+}
+
+HeapEdge *init_heap_edge(int num, int weight) {
+    HeapEdge *edge = (HeapEdge*) malloc(sizeof(HeapEdge));
+    edge->num = num;
+    edge->weight = weight;
+    return edge;
+}
+
+int getLeftChildIndex(int k) {
+    return (k << 1) + 1;
+}
+
+int getRightChildIndex(int k) {
+    return (k + 1) << 1;
+}
+
+int getParentIndex(int k) {
+    return (k - 1) >> 1;
+}
+
+void swap(MinHeap *heap, int i, int j) {
+    HeapEdge *temp = heap->arr[i];
+    heap->arr[i] = heap->arr[j];
+    heap->arr[j] = temp;
+}
+
+MinHeap *insert_heap(MinHeap *heap, int num, int weight) {
+    // Hvis heap er full
+    if(heap->size == heap->capacity) {
+        fprintf(stderr, "Heap is full! Can't add %d.\n", num);
+        return heap;
+    }
+
+    HeapEdge *edge = init_heap_edge(num, weight);
+    heap->size++;
+    heap->arr[heap->size-1] = edge;
+
+    // Setter inn bakerst
+    int curr_index = heap->size - 1;
+
+    while(curr_index > 0 && heap->arr[getParentIndex(curr_index)]->weight > heap->arr[curr_index]->weight) {
+        swap(heap, curr_index, getParentIndex(curr_index));
+
+        curr_index = getParentIndex(curr_index);
+    }
+    return heap;
+}
+
+void fix_heap(int index, MinHeap *heap) {
+    int m = getLeftChildIndex(index);
+    if(m < heap->size) {
+        int h = m + 1;
+        if (h < heap->size && heap->arr[h]->weight < heap->arr[m]->weight) m = h;
+        if (heap->arr[m]->weight < heap->arr[index]->weight) {
+            swap(heap, index, m);
+            fix_heap(m, heap);
+        }
+    }
+}
+
+int extractMinIndex(MinHeap *heap) {
+    if(heap->size == 0) {
+        fprintf(stderr, "Heap is empty! Can't extract minimum value.");
+        return 0;
+    }
+
+    int minIndex = heap->arr[0]->num;
+
+    int size = heap->size;
+    HeapEdge *last_element = heap->arr[size-1];
+    
+    // Update root value with the last element
+    heap->arr[0] = last_element;
+
+    // Now remove the last element, by decreasing the size
+    heap->size--;
+    size--;
+
+    // We need to call heapify(), to maintain the min-heap
+    // property
+    fix_heap(0, heap);
+    return minIndex;
+}
+
 typedef struct node_t g_node;
 typedef struct graph_t graph;
-typedef struct neighbor_t g_neighbor;
+typedef struct edge_t g_edge;
+typedef struct node_info_t node_info;
+typedef struct node_info_list_t node_info_list;
 
 struct node_t {
-    g_neighbor *next;
+    int prev;
+    int distance;
+    g_edge *edge;
 };
 
-struct neighbor_t {
-    int value;
-    g_neighbor *next;
+struct edge_t {
+    int index;
+    int weight;
+    g_edge *next;
 };
 
 struct graph_t {
@@ -24,22 +134,59 @@ struct graph_t {
     g_node **nodes;
 };
 
+struct node_info {
+    int node_index;
+    int cost_from_start;
+};
+
+struct shortest_path {
+    int last_index;
+    int total_cost;
+};
+
+
+struct node_info_t {
+    int weight; // vekt på forskjellig index
+    int to;
+};
+
+struct node_info_list_t {
+    int *node_info;
+};
+
+node_info *init_node_info(int edges) {
+    node_info *info = (node_info*) malloc(sizeof(node_info));
+    //info->weight = calloc(edges, sizeof(int));
+    return info;
+}
+
+node_info_list *init_info_list(int edges ) {
+    node_info_list *list = malloc(sizeof(node_info_list));
+    list->node_info = calloc(edges, sizeof(node_info));
+    return list;
+}
+
+void addInfo(node_info_list *info, int from, int to, int weight) {
+    //info->node_info[from];
+}
+
 g_node *init_node() {
     g_node *node = (g_node*) malloc(sizeof(g_node));
-    node->next = NULL;
+    node->distance = INF;
+    node->edge = NULL;
     return node;
 }
 
-g_neighbor *init_neighbor(int value) {
-    g_neighbor *neighbor = (g_neighbor*) malloc(sizeof(g_neighbor));
-
-    neighbor->value = value;
-    neighbor->next = NULL;
-    return neighbor;
+g_edge *init_edge(int index, int weight) {
+    g_edge *edge = malloc(sizeof(g_edge));
+    edge->next = NULL;
+    edge->index = index;
+    edge->weight = weight;
+    return edge;
 }
 
 graph *init_graph(int size, int edges) {
-    graph *graf = malloc(sizeof(size));
+    graph *graf = malloc(sizeof(g_node));
     graf->size = size;
     graf->edges = edges;
     graf->nodes = (g_node**) calloc(graf->size, sizeof(g_node*));
@@ -49,141 +196,83 @@ graph *init_graph(int size, int edges) {
     return graf;
 }
 
-// Stakk fra boken side 101.
-typedef struct {
-    int *tab;
-    int antall, max;
-} Stakk;
- 
-Stakk *nyStakk(int str) {
-    Stakk *s = (Stakk *)(malloc(sizeof(Stakk)));
-    s->tab = (malloc(str * sizeof(int)));
-    s->antall = 0;
-    s->max = str;
-    return s;
+void addEdge(graph *graf, int from, int to, int weight) {
+    g_edge *curr_edge = graf->nodes[from]->edge;
+
+    g_edge *new = init_edge(to, weight);
+    new->next = graf->nodes[from]->edge;
+    graf->nodes[from]->edge = new;    
 }
 
-bool tomStakk(Stakk *s) {
-    return !s->antall;
+void decreasePriority(MinHeap *heap, int index, int value) {
+    heap->arr[index]->weight -= value;
+    fix_heap(index, heap);
 }
 
-bool fullStakk(Stakk *s) {
-    return s->antall == s->max;
-}
+void printResult(struct shortest_path *shortest_path, graph *graf, int start) {
+    printf("Node\tforgjenger\tdistanse\n");
+    for(int i = 0; i < graf->size; i++) {
+        printf("%d\t", i);
 
-void push(Stakk *s, int e) {
-    if(!fullStakk(s)) {
-        s->tab[s->antall++] = e;
-    }
-}
-
-int pop(Stakk *s) {
-    if(tomStakk(s)) return -1;
-    return s->tab[--s->antall];
-}
-
-void addNeighbor(graph *graf, int from, int to) {
-
-    if(graf->nodes[from]->next == NULL) {
-        graf->nodes[from]->next = init_neighbor(to);
-        return;
-    }
-    
-    g_neighbor *new = init_neighbor(to);
-    new->next = graf->nodes[from]->next;
-    graf->nodes[from]->next = new;
-}
-
-void DFSUtil(graph *graf, int v, bool *visited) {
-    visited[v] = 1;
-    printf("%d ", v);
-
-    int n;
-
-    g_neighbor *temp = graf->nodes[v]->next;
-    g_neighbor *neighbor = temp;
-
-    while (neighbor != NULL)
-    {
-        n = neighbor->value;
-        if (visited[n] == 0) {
-            DFSUtil(graf, n, visited);
-        }
-        neighbor = neighbor->next;
-    }
-}
-
-graph *getTransposed(graph *oldGraph) {
-    int size = oldGraph->size;
-
-    // Transformed graph
-    graph *transGraph = init_graph(size, oldGraph->edges);
-    for (int i = 0; i < size; i++)
-    {
-        g_neighbor *old_neighbor = oldGraph->nodes[i]->next;
-
-        while (old_neighbor != NULL) {
-            addNeighbor(transGraph, old_neighbor->value, i);
-
-            old_neighbor = old_neighbor->next;
-        }
-        
-    }
-    return transGraph;
-}
-
-void fillOrder(graph *graf, int v, bool *visited, Stakk *stakk) {
-    visited[v] = true;
-
-    g_neighbor *neighbor = graf->nodes[v]->next;
-
-    while (neighbor != NULL) {
-        int n = neighbor->value;
-        if (visited[n] == false) {
-            fillOrder(graf, n, visited, stakk);
-        }
-        neighbor = neighbor->next;
-    }
-
-    push(stakk, v);
-}
-
-void printSCCs(graph *graf) {
-
-    int size = graf->size;
-    Stakk *stakk = nyStakk(graf->edges);
-    
-    bool *visited;
-    visited = calloc(size, sizeof(bool));
-    
-    memset(visited, false, size);
-
-    for (int i = 0; i < size; i++)
-        if (visited[i] == false)
-            fillOrder(graf, i, visited, stakk);
-    
-    graph *transGraph = getTransposed(graf);
-
-    memset(visited, false, size);
-    
-    int count = 0;
-    printf("Komponent:\tNode:\n");
-
-    while (tomStakk(stakk) == false)
-    {
-        int v = (int)pop(stakk);
-        
-        // Print
-        if (visited[v] == false) {
-            printf("%d\t\t", count);
-            DFSUtil(transGraph, v, visited);
-            printf("\n");
-            count-=-(!printf("")); // count += 1
+        if(i == start) {
+            printf("Start\t\t%d\n", shortest_path[i].total_cost); // Denne skal alltid bli 0.
+        } else if(shortest_path[i].last_index == -1) { 
+            printf("\t\tnåes ikke\n");
+        } else {
+            printf("%d\t\t%d\n", shortest_path[i].last_index, shortest_path[i].total_cost);
         }
     }
 }
 
-void readFile(char *path) {
+void dijkstra(graph *graf, int startNode) {
+    
+    bool visited[graf->size];
+    memset(visited, false, sizeof(bool) * graf->size);
+
+    struct shortest_path *shortest_path = malloc(sizeof(struct shortest_path) * graf->size);
+
+    MinHeap *heap = init_minheap(graf->size);
+
+
+    for(int i = 0; i < graf->size; i++) {
+        g_node *node = graf->nodes[i];
+        if(i != startNode) {
+            shortest_path[i].total_cost = INF;
+            shortest_path[i].last_index = -1;
+        }
+    }
+
+    shortest_path[startNode].total_cost = 0;
+    shortest_path[startNode].last_index = -1;
+
+    insert_heap(heap, startNode, 0);
+
+    while (heap->size != 0) {
+        int index = extractMinIndex(heap); // Henter minste node i kø
+        g_node *u = graf->nodes[index];         // Finner denne noden i grafen
+
+        g_edge *v = u->edge;
+        visited[index] = true;
+        while (v != NULL) {
+            if(!visited[v->index]) {
+                int new_cost = shortest_path[index].total_cost + v->weight;
+                if(new_cost < shortest_path[v->index].total_cost) {
+                    shortest_path[v->index].total_cost = new_cost;
+                    shortest_path[v->index].last_index = index;
+                    //decreasePriority(heap, v->index, new_cost);
+                    insert_heap(heap, v->index, new_cost);
+                }
+            }
+            
+            v = v->next;
+        }
+    }
+    printResult(shortest_path, graf, startNode);
+    return;
+}
+
+
+void readFile(char *path, int startNode) {
     FILE *fp;
     char ch;
     char line[31];
@@ -222,18 +311,32 @@ void readFile(char *path) {
         } while (ch != '\n');
         int from = (int) strtol(line, &ptr, 10);
         int to = (int) strtol(ptr, &ptr, 10);
-        addNeighbor(graf, from, to);
+        int weight = (int) strtol(ptr, &ptr, 10);
+        addEdge(graf, from, to, weight);
+
     }
 
-    printf("\nFil: %s\n", path);
-    printSCCs(graf);
+    printf("\nFilnavn: %s\n", path);
+    dijkstra(graf, startNode);
+}
+
+void printHeap(MinHeap *heap) {
+    for(int i = 0; i < heap->size; i++) {
+        printf("%d ", heap->arr[i]->weight);
+    }
+    printf("\n");
 }
 
 int main() {
-    readFile("./vg1.txt");
-    //readFile("./vg2.txt");
-    //readFile("./vg5.txt");
-    //readFile("./vg4.txt");
-    //readFile("./vgSkandinavia.txt");
+    
+    readFile("./vg1", 1);
+    readFile("./vg5", 1);
+    //readFile("./vg2", 1);
+    //readFile("./vg3", 1);
+
+    //readFile("./vg4", 1);
+    //readFile("./vgSkandinavia", 143917);
+
+    
     return 0;
 }
