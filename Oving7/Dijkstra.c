@@ -329,14 +329,14 @@ void printHeap(MinHeap *heap) {
 
 int main() {
     
-    readFile("./vg1", 1);
-    readFile("./vg5", 1);
-    //readFile("./vg2", 1);
+    readFile("./vg1", 2);
+    readFile("./vg5", 2);
+    readFile("./vg2", 7);
     //readFile("./vg3", 1);
 
     //readFile("./vg4", 1);
     //readFile("./vgSkandinavia", 143917);
 
-    
+
     return 0;
 }
