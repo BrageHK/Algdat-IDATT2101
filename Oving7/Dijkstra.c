@@ -1,4 +1,4 @@
-// Skrevet av Brage H. Kvamme and 
+// Skrevet av Brage H. Kvamme and Eilert W. Hansen
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
