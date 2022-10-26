@@ -1,4 +1,4 @@
-// Skrevet av Brage H. Kvamme.
+// Skrevet av Brage H. Kvamme and 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -204,11 +204,6 @@ void addEdge(graph *graf, int from, int to, int weight) {
     graf->nodes[from]->edge = new;    
 }
 
-void decreasePriority(MinHeap *heap, int index, int value) {
-    heap->arr[index]->weight -= value;
-    fix_heap(index, heap);
-}
-
 void printResult(struct shortest_path *shortest_path, graph *graf, int start) {
     printf("Node\tforgjenger\tdistanse\n");
     for(int i = 0; i < graf->size; i++) {
@@ -224,14 +219,14 @@ void printResult(struct shortest_path *shortest_path, graph *graf, int start) {
     }
 }
 
-void dijkstra(graph *graf, int startNode) {
+struct shortest_path *dijkstra(graph *graf, int startNode) {
     
     bool visited[graf->size];
     memset(visited, false, sizeof(bool) * graf->size);
 
     struct shortest_path *shortest_path = malloc(sizeof(struct shortest_path) * graf->size);
 
-    MinHeap *heap = init_minheap(graf->size);
+    MinHeap *heap = init_minheap(graf->edges);
 
 
     for(int i = 0; i < graf->size; i++) {
@@ -259,7 +254,6 @@ void dijkstra(graph *graf, int startNode) {
                 if(new_cost < shortest_path[v->index].total_cost) {
                     shortest_path[v->index].total_cost = new_cost;
                     shortest_path[v->index].last_index = index;
-                    //decreasePriority(heap, v->index, new_cost);
                     insert_heap(heap, v->index, new_cost);
                 }
             }
@@ -267,12 +261,19 @@ void dijkstra(graph *graf, int startNode) {
             v = v->next;
         }
     }
-    printResult(shortest_path, graf, startNode);
-    return;
+    return shortest_path;
 }
 
+void printDijkstra(graph *graf, int startNode) {
+    struct shortest_path *shortest_path = dijkstra(graf, startNode);
+    printResult(shortest_path, graf, startNode);
+}
 
-void readFile(char *path, int startNode) {
+void readFile(char *path, int startNode, int printGraph) {
+    clock_t t;
+    double cpu_time_used;
+    t = clock();
+
     FILE *fp;
     char ch;
     char line[31];
@@ -314,29 +315,37 @@ void readFile(char *path, int startNode) {
         int weight = (int) strtol(ptr, &ptr, 10);
         addEdge(graf, from, to, weight);
 
-    }
+    }  
 
-    printf("\nFilnavn: %s\n", path);
-    dijkstra(graf, startNode);
-}
+    fclose(fp);
 
-void printHeap(MinHeap *heap) {
-    for(int i = 0; i < heap->size; i++) {
-        printf("%d ", heap->arr[i]->weight);
+    t = clock() - t;
+
+
+    printf("File name: %s Start position: %d\n", path, startNode);
+    printf("Reading file took %f seconds\n", ((double)t)/CLOCKS_PER_SEC);
+   
+    t = clock();    
+    struct shortest_path *shortest_path = dijkstra(graf, startNode);
+    t = clock()-t;
+    cpu_time_used = ((double)t) / CLOCKS_PER_SEC;
+    
+    if(printGraph) {
+        printResult(shortest_path, graf, startNode);
     }
-    printf("\n");
+   
+    printf("Tid brukt på algoritme (ikke printing): %f\n\n", cpu_time_used);
 }
 
 int main() {
-    
-    readFile("./vg1", 2);
-    readFile("./vg5", 2);
-    readFile("./vg2", 7);
-    //readFile("./vg3", 1);
-
-    //readFile("./vg4", 1);
-    //readFile("./vgSkandinavia", 143917);
-
+    // true => print graph
+    // false => don't print graph
+    readFile("./vg1", 1, true);
+    readFile("./vg5", 1, true);
+    readFile("./vg2", 1, false);
+    readFile("./vg3", 1, false);
+    readFile("./vg4", 1, false);
+    readFile("./vgSkandinavia", 1, false);
 
     return 0;
 }
