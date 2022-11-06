@@ -35,7 +35,7 @@ class DataCompressionApplication {
 
         byte[] decompressedOutput = Arrays.copyOf(decompressed, decompressedSize);
         System.out.println("COMPRESSED: "+lempelZiv.getByteArraySize(compressed)+"\n");
-        output.write(decompressedOutput);
+        //output.write(decompressedOutput);
 
         output.close();
 
@@ -181,9 +181,18 @@ class LempelZivData {
         return contentPointer;
     }
 
+    public short twoBytesToShort(ByteBuffer bb, byte byteOne, byte byteTwo) {
+        bb.clear();
+        bb.put(byteOne);
+        bb.put(byteTwo);
+        short result = bb.getShort(0);
+        bb.clear();
+        return result;
+    }
+
     public byte[] compressWithLempelZiv(byte[] content) {
         byte[] output = new byte[content.length];
-        int outputPointer = 1;  // Skipping first byte as this will be the number to the next backwards-refrence.
+        int outputPointer = 2;  // Skipping first byte as this will be the number to the next backwards-refrence.
         int contentPointer = 0;
         int lastReferenceIndex = 0;
         int thisReferenceIndex = 0;
@@ -209,7 +218,11 @@ class LempelZivData {
                     System.out.println("Fuck");
                     System.exit(-1);
                 }
-                output[lastReferenceIndex] = (byte) (thisReferenceIndex-lastReferenceIndex); // Set the previous reference pointer.
+                short nextReference = (short) (thisReferenceIndex - lastReferenceIndex);
+                byte[] referenceByteArray = new byte[] {(byte) ((nextReference>>8)&0xFF), (byte) (nextReference&0xFF)};
+                output[lastReferenceIndex] = referenceByteArray[0]; // Set the previous reference pointer.
+                output[lastReferenceIndex + 1] = referenceByteArray[1]; // Set the previous reference pointer.
+                
 
                 byte[] arr=new byte[]{(byte)((backJump>>8)&0xFF),(byte)(backJump&0xFF)}; // Convert short to bytes
                 outputPointer = addToBufferWithPointer(output, outputPointer, arr[0]);
@@ -222,6 +235,7 @@ class LempelZivData {
                 lastReferenceIndex = outputPointer;
 
                 outputPointer++; // Her skal plassen til neste referanse være
+                outputPointer++; // Her skal andre byten til referansen være
 
             } else {
                 outputPointer = addToBufferWithPointer(output, outputPointer, match.getNonMatch());
@@ -235,18 +249,21 @@ class LempelZivData {
     }
 
     public byte[] decompressWithLempelZiv(byte[] compressedContent) {
-        int contentLength = compressedContent[0];
-        while(compressedContent[contentLength+4] != 0) {
-            contentLength += compressedContent[contentLength+4] + 4;
+        ByteBuffer bb = ByteBuffer.allocate(2);
+
+        short contentLength = twoBytesToShort(bb, compressedContent[0], compressedContent[1]);
+        
+        while(compressedContent[contentLength+5] != 0) {
+            contentLength += compressedContent[contentLength+5] + 5;
         }
 
         byte[] output = new byte[contentLength + compressedContent.length];
-        ByteBuffer bb = ByteBuffer.allocate(2);
 
         int jumpIndex = compressedContent[0];
         int outputPointer = 0;
         for (int compressedContentPointer = 1; compressedContentPointer < getByteArraySize(compressedContent); compressedContentPointer++) {
             if (compressedContentPointer == jumpIndex){
+
                 byte[] offset = new byte[2];
                 offset[0] = compressedContent[compressedContentPointer];    // Get the first byte of the offset
                 offset[1] = compressedContent[compressedContentPointer + 1];    // Get the second byte of the offset
@@ -254,6 +271,7 @@ class LempelZivData {
                 bb.put(offset[1]);
                 short backJump = bb.getShort(0);
                 bb.clear();
+
                 int length = compressedContent[compressedContentPointer + 2];
                 if (length < 0) {length += 256;}
                 byte nonMatch = compressedContent[compressedContentPointer + 3];// Get the non match of the match
