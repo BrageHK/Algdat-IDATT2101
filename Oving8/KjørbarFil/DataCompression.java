@@ -41,11 +41,11 @@ class DataCompressionApplication {
 
         System.out.println("File sizes:\nContent\tCompressed\tDecompressed:\tEqual file size:\n " + lempelZiv.getByteArraySize(content) + "\t" + lempelZiv.getByteArraySize(compressed) + "\t\t\t" +lempelZiv.getByteArraySize(decompressed) + "\t\t"+(lempelZiv.getByteArraySize(content) == lempelZiv.getByteArraySize(decompressed)));
 
-        System.out.println("Original: " +lempelZiv.getByteArrayAsString(content)+"\n");
+        /*System.out.println("Original: " +lempelZiv.getByteArrayAsString(content)+"\n");
 
         System.out.println("Compressed: " + lempelZiv.getByteArrayAsString(compressed)+"\n");
 
-        System.out.println("Decompressed: " + lempelZiv.getByteArrayAsString(decompressed)+"\n");
+        System.out.println("Decompressed: " + lempelZiv.getByteArrayAsString(decompressed)+"\n");*/
     }
 }
 
@@ -211,8 +211,6 @@ class LempelZivData {
                 }
                 output[lastReferenceIndex] = (byte) (thisReferenceIndex-lastReferenceIndex); // Set the previous reference pointer.
 
-                //outputPointer = addToBufferWithPointer(output, outputPointer, ((byte) DELIMITER));  // File delimiter
-
                 byte[] arr=new byte[]{(byte)((backJump>>8)&0xFF),(byte)(backJump&0xFF)}; // Convert short to bytes
                 outputPointer = addToBufferWithPointer(output, outputPointer, arr[0]);
                 outputPointer = addToBufferWithPointer(output, outputPointer, arr[1]);
@@ -242,14 +240,12 @@ class LempelZivData {
             contentLength += compressedContent[contentLength+4] + 4;
         }
 
-        System.out.println((contentLength+compressedContent.length+1000000)+"\n");
-
-        byte[] output = new byte[contentLength + compressedContent.length+1000000];
+        byte[] output = new byte[contentLength + compressedContent.length];
         ByteBuffer bb = ByteBuffer.allocate(2);
 
         int jumpIndex = compressedContent[0];
         int outputPointer = 0;
-        for (int compressedContentPointer = 1; compressedContentPointer < compressedContent.length; compressedContentPointer++) {
+        for (int compressedContentPointer = 1; compressedContentPointer < getByteArraySize(compressedContent); compressedContentPointer++) {
             if (compressedContentPointer == jumpIndex){
                 byte[] offset = new byte[2];
                 offset[0] = compressedContent[compressedContentPointer];    // Get the first byte of the offset
@@ -271,14 +267,11 @@ class LempelZivData {
                 outputPointer++;
                 compressedContentPointer += 4;
             } else {
-                if(outputPointer>contentLength+compressedContent.length) {
-
-                }
                 output[outputPointer] = compressedContent[compressedContentPointer];
                 outputPointer++;
             }
         }
-
+        System.out.println("\nOutputpointer: " + outputPointer);
         return Arrays.copyOf(output, getByteArraySize(output) + 1);
     }
 
