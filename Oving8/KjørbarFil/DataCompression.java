@@ -182,7 +182,7 @@ class LempelZivData {
     }
 
     public byte[] compressWithLempelZiv(byte[] content) {
-        byte[] output = new byte[content.length+1];
+        byte[] output = new byte[content.length];
         int outputPointer = 1;  // Skipping first byte as this will be the number to the next backwards-refrence.
         int contentPointer = 0;
         int lastReferenceIndex = 0;
@@ -272,7 +272,7 @@ class LempelZivData {
             }
         }
         System.out.println("\nOutputpointer: " + outputPointer);
-        return Arrays.copyOf(output, getByteArraySize(output) + 1);
+        return Arrays.copyOf(output, getByteArraySize(output));
     }
 
     public String getByteArrayAsString(byte[] array) {
