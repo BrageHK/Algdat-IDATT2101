@@ -261,16 +261,10 @@ class LempelZivData {
 
         int jumpIndex = compressedContent[0];
         int outputPointer = 0;
-        for (int compressedContentPointer = 1; compressedContentPointer < getByteArraySize(compressedContent); compressedContentPointer++) {
+        for (int compressedContentPointer = 2; compressedContentPointer < getByteArraySize(compressedContent); compressedContentPointer++) {
             if (compressedContentPointer == jumpIndex){
 
-                byte[] offset = new byte[2];
-                offset[0] = compressedContent[compressedContentPointer];    // Get the first byte of the offset
-                offset[1] = compressedContent[compressedContentPointer + 1];    // Get the second byte of the offset
-                bb.put(offset[0]);
-                bb.put(offset[1]);
-                short backJump = bb.getShort(0);
-                bb.clear();
+                short backJump = twoBytesToShort(bb, compressedContent[compressedContentPointer], compressedContent[compressedContentPointer + 1]);
 
                 int length = compressedContent[compressedContentPointer + 2];
                 if (length < 0) {length += 256;}
@@ -283,7 +277,7 @@ class LempelZivData {
                 }
                 output[outputPointer] = nonMatch;
                 outputPointer++;
-                compressedContentPointer += 4;
+                compressedContentPointer += 5;
             } else {
                 output[outputPointer] = compressedContent[compressedContentPointer];
                 outputPointer++;
