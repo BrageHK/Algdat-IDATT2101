@@ -233,6 +233,7 @@ class LempelZivData {
                 outputPointer++; // Her skal andre byten til referansen være
 
             } else {
+                System.out.println("YO");
                 outputPointer = addToBufferWithPointer(output, outputPointer, match.getNonMatch());
             }
 

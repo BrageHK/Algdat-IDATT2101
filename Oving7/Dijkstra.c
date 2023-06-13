@@ -144,7 +144,6 @@ struct shortest_path {
     int total_cost;
 };
 
-
 struct node_info_t {
     int weight; // vekt på forskjellig index
     int to;
@@ -208,7 +207,6 @@ void printResult(struct shortest_path *shortest_path, graph *graf, int start) {
     printf("Node\tforgjenger\tdistanse\n");
     for(int i = 0; i < graf->size; i++) {
         printf("%d\t", i);
-
         if(i == start) {
             printf("Start\t\t%d\n", shortest_path[i].total_cost); // Denne skal alltid bli 0.
         } else if(shortest_path[i].last_index == -1) { 
@@ -217,6 +215,7 @@ void printResult(struct shortest_path *shortest_path, graph *graf, int start) {
             printf("%d\t\t%d\n", shortest_path[i].last_index, shortest_path[i].total_cost);
         }
     }
+    //printf("%d\t\t%d\n", shortest_path[102331].last_index, shortest_path[102331].total_cost);
 }
 
 struct shortest_path *dijkstra(graph *graf, int startNode) {
@@ -342,10 +341,13 @@ int main() {
     // false => don't print graph
     readFile("./vg1", 1, true);
     readFile("./vg5", 1, true);
-    readFile("./vg2", 1, false);
+    readFile("./vg2", 1, true);
     readFile("./vg3", 1, false);
     readFile("./vg4", 1, false);
     readFile("./vgSkandinavia", 1, false);
+
+    //readFile("island_kanter.txt", 0, true);
+    
 
     return 0;
 }
