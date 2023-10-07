@@ -11,34 +11,43 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 
 
 class DataCompressionApplication {
     public static void main(String[] args) throws IOException {
+        /*
+        Diverse.pdf virker ikke og enwik8 tar for lang tid. Alle de andre filene virker.
+         */
         String filename = "diverse.lyx";
+        //String filename = "diverse.txt";
+        //String filename = "opg8-kompr.pdf";
+
         var input = new DataInputStream(new BufferedInputStream(new FileInputStream(filename)));
-        var output = new DataOutputStream(new BufferedOutputStream(new FileOutputStream("komprimert_" + filename)));
+        var output = new DataOutputStream(new BufferedOutputStream(new FileOutputStream("dekomprimert_" + filename)));
 
         long size = Files.size(Paths.get(filename));
         byte[] content = new byte[((int)size)];
-        
+
         input.readFully(content);
         input.close();
 
-        LempelZivData lempelZiv = new LempelZivData((short) 32767, (short) 255);
+        LempelZivData lempelZiv = new LempelZivData((short) 32565, (short) 255);
         byte[] compressed = lempelZiv.compressWithLempelZiv(content);
-        
+
         byte[] decompressed = lempelZiv.decompressWithLempelZiv(compressed);
-        
+
         int decompressedSize = lempelZiv.getByteArraySize(decompressed);
 
         byte[] decompressedOutput = Arrays.copyOf(decompressed, decompressedSize);
-
         output.write(decompressedOutput);
 
         output.close();
 
-        System.out.println("File sizes:\nContent\tCompressed\tDecompressed:\tEqual file size:\n " + lempelZiv.getByteArraySize(content) + "\t" + lempelZiv.getByteArraySize(compressed) + "\t\t" + lempelZiv.getByteArraySize(decompressed) + "\t\t"+(lempelZiv.getByteArraySize(content) == lempelZiv.getByteArraySize(decompressed)));
+        System.out.println("File sizes:\nContent\tCompressed\tDecompressed:\tEqual file size:\n " +
+                lempelZiv.getByteArraySize(content) + "\t" + lempelZiv.getByteArraySize(compressed) + "\t\t\t" +
+                lempelZiv.getByteArraySize(decompressed) + "\t\t" +
+                (lempelZiv.getByteArraySize(content) == lempelZiv.getByteArraySize(decompressed)));
     }
 }
 
@@ -76,8 +85,8 @@ class Match {
 class LempelZivData {
 
     private final int MIN_MATCH_SIZE = 4;
-    private final int BYTES_IN_OFFSET = 2;
-    private final int DELIMITER = 28;
+    private final int SHORT_MAX_SIZE = 65535;
+    private final int BYTE_MAX_SIZE = 256;
 
     private final short lookAheadBufferLength;
     private final byte[] lookAheadBuffer;
@@ -91,19 +100,14 @@ class LempelZivData {
         this.searchBuffer = new byte[searchBufferLength];
     }
 
-    public byte[] getLookAheadBuffer() {
-        return lookAheadBuffer;
-    }
-
-    public byte[] getSearchBuffer() {
-        return searchBuffer;
-    }
-
     private int getWindowSize() {
         return searchBufferLength + lookAheadBufferLength;
     }
 
     private int addToBufferWithPointer(byte[] buffer, int index, byte insertion) {
+        if (buffer[index] != 0) {
+            System.out.println("Not empty at index " + index + " inserting " + insertion);
+        }
         buffer[index] = insertion;
         return index + 1;
     }
@@ -176,95 +180,117 @@ class LempelZivData {
         return contentPointer;
     }
 
+    public short twoBytesToShort(ByteBuffer bb, byte byteOne, byte byteTwo) {
+        bb.clear();
+        bb.put(byteOne);
+        bb.put(byteTwo);
+        short result = bb.getShort(0);
+        bb.clear();
+        return result;
+    }
+
     public byte[] compressWithLempelZiv(byte[] content) {
         byte[] output = new byte[content.length];
-        int outputPointer = 0;
+        int outputPointer = 2;  // Skipping first byte as this will be the number to the next backwards-refrence.
         int contentPointer = 0;
+        int lastReferenceIndex = 0;
+        int thisReferenceIndex = 0;
 
         for (int i = 0; i < lookAheadBufferLength && i < content.length; i++) {
             contentPointer = addToBufferWithPointer(lookAheadBuffer, contentPointer, content[i]);
         }
-
         while (!isBufferEmpty(lookAheadBuffer)) {
             Match match = getMatchInBuffers(content, contentPointer);
             int length = match.getLength();
             short backJump = match.getBackJump();
 
-            if (length >= lookAheadBufferLength) 
+            if (length >= lookAheadBufferLength)
                 contentPointer++;
 
             if (length > 0) {
-                outputPointer = addToBufferWithPointer(output, outputPointer, ((byte) DELIMITER));  // File delimiter
+
+                thisReferenceIndex = outputPointer;
+
+                short nextReference = (short) (thisReferenceIndex - lastReferenceIndex);
+                byte[] referenceByteArray = new byte[] {(byte) ((nextReference>>8)&0xFF), (byte) (nextReference&0xFF)};
+                output[lastReferenceIndex] = referenceByteArray[0]; // Set the previous reference pointer.
+                output[lastReferenceIndex + 1] = referenceByteArray[1]; // Set the previous reference pointer.
+
 
                 byte[] arr=new byte[]{(byte)((backJump>>8)&0xFF),(byte)(backJump&0xFF)}; // Convert short to bytes
                 outputPointer = addToBufferWithPointer(output, outputPointer, arr[0]);
                 outputPointer = addToBufferWithPointer(output, outputPointer, arr[1]);
 
+
+
                 outputPointer = addToBufferWithPointer(output, outputPointer, ((byte) length)); // length of match
                 outputPointer = addToBufferWithPointer(output, outputPointer, match.getNonMatch()); // Non match
+                // Trenger vi non-match? kanskje.
+
+                lastReferenceIndex = outputPointer;
+
+                outputPointer++; // Her skal plassen til neste referanse være
+                outputPointer++; // Her skal andre byten til referansen være
+
             } else {
+                System.out.println("YO");
                 outputPointer = addToBufferWithPointer(output, outputPointer, match.getNonMatch());
             }
 
             contentPointer = shiftSearchAndLookAhead(length + 1, content, contentPointer);
         }
-
         return output;
 
     }
 
     public byte[] decompressWithLempelZiv(byte[] compressedContent) {
-        int outputPointer = 0;
+        ByteBuffer bb = ByteBuffer.allocate(2);
+        /*
+        short contentLength = twoBytesToShort(bb, compressedContent[0], compressedContent[1]);
+        while(twoBytesToShort(bb, compressedContent[contentLength], compressedContent[contentLength+1]) != 0) {
 
-        int contentLength = compressedContent.length;
-        for(int i = 0; i < compressedContent.length; i++) {
-            if(compressedContent[i] == DELIMITER) {
-                int length = compressedContent[i + 3];
-                if (length < 0) {length += 256;}
-                contentLength += length;
-                i += 4;
-            }
+            contentLength += twoBytesToShort(bb, compressedContent[contentLength], compressedContent[contentLength+1]) + 5;
         }
 
-        byte[] output = new byte[contentLength];
-        ByteBuffer bb = ByteBuffer.allocate(2);
-        for (int compressedContentPointer = 0; compressedContentPointer < compressedContent.length; compressedContentPointer++) {
+        System.out.println("Output-lengde: " + contentLength);*/
 
-            if (compressedContent[compressedContentPointer] == DELIMITER) {
-                byte[] offset = new byte[2];
-                offset[0] = compressedContent[compressedContentPointer + 1];    // Get the first byte of the offset
-                offset[1] = compressedContent[compressedContentPointer + 2];    // Get the second byte of the offset
-                bb.put((byte) offset[0]);
-                bb.put((byte) offset[1]);
-                short backJump = bb.getShort(0);
-                bb.clear();
-                int length = compressedContent[compressedContentPointer + 3];
-                if (length < 0) {length += 256;}
-                byte nonMatch = compressedContent[compressedContentPointer + 4];// Get the non match of the match
+
+        byte[] output = new byte[2000000000];
+
+        int jumpIndex = twoBytesToShort(bb, compressedContent[0], compressedContent[1]);
+        int outputPointer = 0;
+        for (int compressedContentPointer = 2; compressedContentPointer < getByteArraySize(compressedContent); compressedContentPointer++) {
+            if (compressedContentPointer == jumpIndex){
+
+                int backJump = twoBytesToShort(bb, compressedContent[compressedContentPointer], compressedContent[compressedContentPointer + 1]);
+                if (backJump < 0) {
+                    backJump += SHORT_MAX_SIZE;
+                }
+
+                int length = compressedContent[compressedContentPointer + 2];
+
+                if (length < 0) {
+                    length += BYTE_MAX_SIZE;
+                }
+
+                byte nonMatch = compressedContent[compressedContentPointer + 3];// Get the non match of the match
+                int nextJump = twoBytesToShort(bb, compressedContent[compressedContentPointer + 4], compressedContent[compressedContentPointer + 5]);
+                if (nextJump < 0) {
+                    nextJump += SHORT_MAX_SIZE;
+                }
+                jumpIndex += nextJump + 4;          // Sets the jumpIndex to the next reference point
 
                 for (int i = 0; i < length; i++) {
-                    output[outputPointer] = output[outputPointer - backJump]; // KEY
-                    outputPointer++;
+                    outputPointer = addToBufferWithPointer(output, outputPointer, output[outputPointer - backJump]);
                 }
                 output[outputPointer] = nonMatch;
                 outputPointer++;
-                compressedContentPointer += 4;
-                
+                compressedContentPointer += 5;
             } else {
-                output[outputPointer] = compressedContent[compressedContentPointer];
-                outputPointer++;
+                outputPointer = addToBufferWithPointer(output, outputPointer, compressedContent[compressedContentPointer]);
             }
         }
-        return Arrays.copyOf(output, getByteArraySize(output) + 1);
-    }
-
-    public String getByteArrayAsString(byte[] array) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < array.length; i++) {
-            sb.append(array[i]);
-            sb.append(' ');
-        }
-        return sb.toString();
+        return Arrays.copyOf(output, getByteArraySize(output));
     }
 
     public int getByteArraySize(byte[] array) {

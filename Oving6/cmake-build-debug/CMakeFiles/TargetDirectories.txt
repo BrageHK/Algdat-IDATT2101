@@ -1,0 +1,3 @@
+/Users/brage/Documents/AlgDat/Ovinger/Oving6/cmake-build-debug/CMakeFiles/Oving6.dir
+/Users/brage/Documents/AlgDat/Ovinger/Oving6/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/brage/Documents/AlgDat/Ovinger/Oving6/cmake-build-debug/CMakeFiles/rebuild_cache.dir
